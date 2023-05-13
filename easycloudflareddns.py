@@ -1,13 +1,14 @@
 import requests
 import re
+import sys
 from collections import namedtuple
 
 
 class EasyCloudflareDDNS:
-    def __init__(self):
+    def __init__(self, config_path):
         self.config = {}
 
-        params = read_params_from_file("./cloudflare.config")
+        params = read_params_from_file(config_path)
 
         assert "email" in params
         assert "root" in params
@@ -33,6 +34,8 @@ class EasyCloudflareDDNS:
 
         self.ip = get_ip()
 
+    # Gets the id for a given zone name
+    # A zone is the root domain, e.g.: example.com
     def get_zone_id(self, zone_name):
         zones = self.get_all_zones()
         for zone in zones:
@@ -42,6 +45,9 @@ class EasyCloudflareDDNS:
 
         raise ValueError(f"No zone found called {zone_name}")
 
+    # Gets all zones for the provided API key
+    # If you have provided a global API key, this will be all of your zones
+    # If you have provided an API Token, this will be all the zones which that token can see
     def get_all_zones(self):
         url = "https://api.cloudflare.com/client/v4/zones/"
 
@@ -56,6 +62,9 @@ class EasyCloudflareDDNS:
 
         return Zones
 
+    # Gets all the DNS records for a given zone.
+    # For example, if the zone is example.com, this may produce
+    # example.com, subdomain_one.example.com, subdomain_two.example.com, etc
     def list_dns_records(self, zone_id):
         url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/"
 
@@ -66,6 +75,7 @@ class EasyCloudflareDDNS:
         DNSRecords = [
             DNSRecord(record["name"], record["id"], record["zone_id"])
             for record in response.json()["result"]
+            if record["type"] == "A"
         ]
 
         for dns_record in DNSRecords:
@@ -73,6 +83,8 @@ class EasyCloudflareDDNS:
 
         return DNSRecords
 
+    # Sends a PATCH request to change the content of a record to
+    # be equal to the new IP address
     def patch_record_with_ip(self, zone_id, id):
         url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{id}"
 
@@ -87,6 +99,8 @@ class EasyCloudflareDDNS:
 
         assert response.status_code == 200
 
+    # This is the command which puts everything together and is what you probably
+    # want to call after creating a EasyCloudflareDDNS object
     def update_ip(self, regex=False):
         all_dns_records = self.list_dns_records(self.get_zone_id(self.config["root"]))
 
@@ -126,6 +140,9 @@ def read_params_from_file(file_path):
     return params
 
 
-EasyCloudflareDDNS().update_ip()
-# c = EasyCloudflareDDNS()
-# c.update_ip()
+if __name__ == "__main__":
+    config_path = "./cloudflare.config"
+    if len(sys.argv) > 1:
+        config_path = sys.argv[1].strip()
+
+    EasyCloudflareDDNS(config_path).update_ip()
