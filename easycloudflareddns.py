@@ -10,24 +10,19 @@ class EasyCloudflareDDNS:
 
         params = read_params_from_file(config_path)
 
-        assert "email" in params
+        assert "dnskey" in params or ("globalkey" in params and "email" in params)
         assert "root" in params
         assert "names" in params
-        assert "dnskey" in params or "globalkey" in params
-
-        self.config["email"] = params["email"]
 
         if "dnskey" in params:
-            self.config["apikey_value"] = "Bearer " + params["dnskey"]
-            self.config["apikey_header"] = "Authorization"
+            self.config["auth_headers"] = {
+                "Authorization": "Bearer " + params["dnskey"],
+            }
         else:
-            self.config["apikey_value"] = params["globalkey"]
-            self.config["apikey_header"] = "X-Auth-Key"
-
-        self.config["auth_headers"] = {
-            "X-Auth-Email": self.config["email"],
-            self.config["apikey_header"]: self.config["apikey_value"],
-        }
+            self.config["auth_headers"] = {
+                "X-Auth-Email": params["email"],
+                "X-Auth-Key": params["globalkey"],
+            }
 
         self.config["root"] = params["root"]
         self.config["names"] = params["names"].split(",")
